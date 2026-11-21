@@ -1000,19 +1000,53 @@ function bind(){
         renderAll(); window.scrollTo({top:0}); toast('모두 지웠습니다.');
       }); return; }
     if (act==='png-save'){ if (!quoteBlob) return;
+      // 모바일 브라우저는 Blob 다운로드 링크를 무시하는 경우가 있어
+      // 새 탭에 이미지 자체를 열고 길게 눌러 저장하도록 안내합니다.
+      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        var saveTab = window.open(quoteUrl, '_blank');
+        if (saveTab) toast('새 화면에 견적서 이미지가 열렸습니다. 이미지를 길게 눌러 사진 또는 파일로 저장해 주세요.', 6500);
+        else toast('브라우저가 새 화면 열기를 차단했습니다. 미리보기 이미지를 길게 눌러 저장해 주세요.', 6500);
+        return;
+      }
       saveFile(fileBase() + '.png', quoteBlob, 'image/png').then(function(r){
         if (r==='saved') toast('견적서 이미지를 저장했습니다.');
         else if (r==='declined') toast('저장을 취소했습니다.');
         else if (r==='busy') toast('다른 저장 창이 열려 있습니다. 잠시 후 다시 눌러 주세요.');
-        else toast('이 화면에서는 파일 저장이 막혀 있습니다. 미리보기 이미지를 길게 누르거나 오른쪽 클릭해 저장해 주세요.', 5000);
+        else toast('파일 저장이 제한되었습니다. 미리보기 이미지를 길게 누르거나 오른쪽 클릭해 저장해 주세요.', 5000);
       }); return; }
-    if (act==='png-copy'){ if (!quoteBlob) return;
-      if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem){
-        navigator.clipboard.write([new ClipboardItem({'image/png': quoteBlob})]).then(function(){
-          toast('견적서 이미지를 복사했습니다. 카카오톡 채팅창에 붙여넣어 보내 주세요.', 4000);
-        }, function(){ toast('이 브라우저에서는 이미지 복사가 막혀 있습니다. 이미지 저장 후 첨부하거나 텍스트 복사를 이용해 주세요.', 5000); });
-      } else toast('이 브라우저는 이미지 복사를 지원하지 않습니다. 이미지 저장 후 첨부하거나 텍스트 복사를 이용해 주세요.', 5000);
-      return; }
+    if (act==='png-copy'){
+      if (!quoteBlob){ toast('견적서 이미지가 아직 준비되지 않았습니다. 잠시 후 다시 눌러 주세요.'); return; }
+
+      // 카카오톡 인앱 브라우저(WebView)는 Android/iOS 정책상
+      // 웹페이지의 시스템 클립보드 접근이 차단될 수 있습니다.
+      // 이 환경에서는 성공한 것처럼 표시하지 않고 외부 브라우저 사용을 안내합니다.
+      var ua = navigator.userAgent || '';
+      var isKakaoInApp = /KAKAOTALK/i.test(ua);
+      if (isKakaoInApp){
+        toast('카카오톡 내부 브라우저에서는 이미지 복사가 제한됩니다. 우측 상단 ⋮ 메뉴에서 “다른 브라우저로 열기”를 선택한 뒤, Chrome 또는 Safari에서 다시 이미지 복사를 눌러 주세요.', 8500);
+        return;
+      }
+
+      if (window.isSecureContext && navigator.clipboard && navigator.clipboard.write && window.ClipboardItem){
+        try {
+          var pngItem = new ClipboardItem({'image/png': new Blob([quoteBlob], {type:'image/png'})});
+          navigator.clipboard.write([pngItem]).then(function(){
+            toast(/Android|iPhone|iPad|iPod/i.test(ua)
+              ? '견적서 이미지가 복사되었습니다. 카카오톡 상담창을 연 뒤 입력창을 길게 눌러 붙여넣기를 선택해 주세요.'
+              : '견적서 이미지가 복사되었습니다. 카카오톡 대화 입력창에서 붙여넣어 주세요.', 6500);
+          }).catch(function(err){
+            console.error('이미지 클립보드 복사 실패:', err);
+            toast('이 브라우저에서 이미지 복사가 제한되었습니다. 카카오톡 우측 상단 메뉴에서 외부 브라우저로 열어 다시 시도해 주세요.', 7500);
+          });
+        } catch(err) {
+          console.error('이미지 클립보드 준비 실패:', err);
+          toast('이 브라우저에서 이미지 복사를 지원하지 않습니다. 카카오톡 우측 상단 메뉴에서 외부 브라우저로 열어 다시 시도해 주세요.', 7500);
+        }
+      } else {
+        toast('이 브라우저에서는 이미지 복사를 지원하지 않습니다. 카카오톡 우측 상단 메뉴에서 외부 브라우저로 열어 다시 시도해 주세요.', 7500);
+      }
+      return;
+    }
     if (act==='text-copy'){ copyText(quoteText()).then(function(ok){ toast(ok ? '견적 내용을 복사했습니다. 카카오톡에 붙여넣어 보내 주세요.' : '복사하지 못했습니다. 이미지 저장을 이용해 주세요.', 3500); }); return; }
   });
   $('#chips').addEventListener('keydown', function(e){
