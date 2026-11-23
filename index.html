@@ -666,6 +666,8 @@ function mergeState(s){
   return b;
 }
 function loadDraft(){
+  var ext = readCarryParam();
+  if (ext){ state = mergeState(ext); return 'carry-ext'; }
   try {
     var carry = sessionStorage.getItem(SS_KEY);
     if (carry){ sessionStorage.removeItem(SS_KEY); state = mergeState(JSON.parse(carry)); return 'carry'; }
@@ -895,6 +897,59 @@ function copyText(s){
   }
   return Promise.resolve(legacyCopy(s));
 }
+/* ---------- 브라우저 판별 · Chrome으로 이어서 열기 ---------- */
+// 카카오톡 인앱 브라우저와 삼성 인터넷은 이미지를 클립보드에 넣어도
+// 카카오톡 입력창에서 붙여넣기가 되지 않습니다(키보드 클립보드에만 보임).
+// 그래서 이 환경에서는 작성 내용을 그대로 담아 Chrome으로 넘겨서 복사하게 합니다.
+function env(){
+  var ua = navigator.userAgent || '';
+  var android = /Android/i.test(ua), ios = /iPhone|iPad|iPod/i.test(ua);
+  var kakao = /KAKAOTALK/i.test(ua);
+  var samsung = /SamsungBrowser/i.test(ua);
+  var inapp = kakao || /; wv\)|NAVER\(inapp|Instagram|FBAN|FBAV|FB_IAB|Line\/|DaumApps|BAND\/|everytimeApp|whale/i.test(ua);
+  return { android:android, ios:ios, kakao:kakao, samsung:samsung, inapp:inapp,
+    needChrome: android && (inapp || samsung || !/Chrome\//.test(ua)),
+    needSafari: ios && inapp };
+}
+function b64e(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64d(str){ str = str.replace(/-/g,'+').replace(/_/g,'/'); while (str.length % 4) str += '='; return decodeURIComponent(escape(atob(str))); }
+function carryUrl(){
+  var u = new URL(location.href);
+  u.hash = '';
+  u.searchParams.set('carry', b64e(JSON.stringify(state)));
+  return u.toString();
+}
+function readCarryParam(){
+  try {
+    var u = new URL(location.href), c = u.searchParams.get('carry');
+    if (!c) return null;
+    u.searchParams.delete('carry');
+    history.replaceState(null, '', u.pathname + u.search + u.hash);
+    return JSON.parse(b64d(c));
+  } catch(e){ return null; }
+}
+function openInChrome(){
+  var e = env(), url = carryUrl();
+  if (e.needSafari){
+    // iOS 카카오톡 등: 카카오톡 전용 주소로 Safari에서 열기
+    if (e.kakao){ location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url);
+      toast('Safari로 이동합니다. 열리지 않으면 우측 하단 메뉴에서 “다른 브라우저로 열기”를 눌러 주세요.', 8000); }
+    else toast('이 앱 안에서는 이미지 복사가 안 됩니다. 메뉴에서 “Safari로 열기”를 선택한 뒤 다시 눌러 주세요.', 8000);
+    return;
+  }
+  var u = new URL(url);
+  var intent = 'intent://' + u.host + u.pathname + u.search + '#Intent;scheme=' + u.protocol.replace(':','') + ';package=com.android.chrome;end';
+  var left = false;
+  var onHide = function(){ if (document.hidden) left = true; };
+  document.addEventListener('visibilitychange', onHide);
+  location.href = intent;
+  setTimeout(function(){
+    document.removeEventListener('visibilitychange', onHide);
+    if (left) return;
+    if (e.kakao){ location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url); }
+    toast('Chrome이 열리지 않았습니다. 우측 메뉴(⋮)에서 “다른 브라우저로 열기” → Chrome을 선택한 뒤 이미지 복사를 다시 눌러 주세요.', 9000);
+  }, 1800);
+}
 function legacyCopy(s){
   try { var ta = document.createElement('textarea'); ta.value = s; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0';
     document.body.appendChild(ta); ta.select(); var ok = document.execCommand('copy'); ta.remove(); return ok; } catch(e){ return false; }
@@ -1017,13 +1072,13 @@ function bind(){
     if (act==='png-copy'){
       if (!quoteBlob){ toast('견적서 이미지가 아직 준비되지 않았습니다. 잠시 후 다시 눌러 주세요.'); return; }
 
-      // 카카오톡 인앱 브라우저(WebView)는 Android/iOS 정책상
-      // 웹페이지의 시스템 클립보드 접근이 차단될 수 있습니다.
-      // 이 환경에서는 성공한 것처럼 표시하지 않고 외부 브라우저 사용을 안내합니다.
       var ua = navigator.userAgent || '';
-      var isKakaoInApp = /KAKAOTALK/i.test(ua);
-      if (isKakaoInApp){
-        toast('카카오톡 내부 브라우저에서는 이미지 복사가 제한됩니다. 우측 상단 ⋮ 메뉴에서 “다른 브라우저로 열기”를 선택한 뒤, Chrome 또는 Safari에서 다시 이미지 복사를 눌러 주세요.', 8500);
+      // 카카오톡 인앱 · 삼성 인터넷 등: 여기서 복사하면 카카오톡에 붙여넣기가 안 되므로
+      // 작성 내용을 그대로 Chrome으로 넘겨 그곳에서 복사하도록 합니다.
+      var ev = env();
+      if (ev.needChrome || ev.needSafari){
+        toast(ev.needSafari ? 'Safari에서 견적서를 다시 열고 있어요…' : 'Chrome에서 견적서를 다시 열고 있어요. 열리면 “이미지 복사”를 한 번 더 눌러 주세요.', 6000);
+        openInChrome();
         return;
       }
 
@@ -1156,7 +1211,16 @@ var restored = loadDraft();
 bind();
 renderAll();
 initAdminAccess();
-if (restored==='carry') toast('메뉴를 저장하고 작성 중이던 견적을 이어서 불러왔습니다.');
+(function(){
+  var ev = env(), b = $('[data-act="png-copy"]');
+  if (b && ev.needChrome) b.textContent = 'Chrome에서 열어 이미지 복사';
+  if (b && ev.needSafari) b.textContent = 'Safari에서 열어 이미지 복사';
+})();
+if (restored==='carry-ext'){
+  openQuote();
+  toast('작성하신 견적을 그대로 불러왔습니다. “이미지 복사” → “카카오톡 채널 열기” → 입력창 길게 눌러 붙여넣기 순서로 진행해 주세요.', 8000);
+}
+else if (restored==='carry') toast('메뉴를 저장하고 작성 중이던 견적을 이어서 불러왔습니다.');
 else if (restored) toast('임시 저장한 내용을 불러왔습니다 (' + stamp(restored) + ').', 3500);
 })();</script>
 </body>
