@@ -184,6 +184,9 @@ textarea.in{min-height:120px;resize:vertical;line-height:1.6}
 .btn.pri{background:var(--brand-bg);color:var(--brand-ink);border-color:var(--brand-bg)}
 .btn.acc{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .btn.kakao{background:#FEE500;color:#191600;border-color:#FEE500}
+.btn.kakao.nudge{animation:nudge 1s ease-in-out 3;box-shadow:0 0 0 3px rgba(254,229,0,.55)}
+@keyframes nudge{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@media (prefers-reduced-motion:reduce){.btn.kakao.nudge{animation:none}}
 .btn.ghost-danger{color:var(--danger)}
 .btn.full{grid-column:1/-1}
 .btn[disabled]{opacity:.5;cursor:not-allowed}
@@ -899,8 +902,8 @@ function copyText(s){
 }
 /* ---------- 브라우저 판별 · 이미지 전달 방식 ---------- */
 // 삼성 인터넷은 이미지를 클립보드에 넣어도 카카오톡 입력창에 붙여넣기가 되지 않습니다
-// (키보드 클립보드 목록에만 보임). 대신 '공유'로 카카오톡에 이미지를 바로 보낼 수 있어
-// 삼성 인터넷에서는 공유 방식을 씁니다. Chrome·Safari는 기존처럼 복사 → 붙여넣기.
+// (키보드 클립보드 목록에만 보임). 그래서 삼성 인터넷에서는 견적서를 사진으로 바로 저장한 뒤
+// 카카오톡 채널 대화방에서 + → 앨범으로 보내게 합니다. Chrome·Safari는 기존처럼 복사 → 붙여넣기.
 // 카카오톡 등 앱 내부 브라우저는 복사·공유가 모두 막혀 있어, 작성 내용을 담아
 // 휴대폰 기본 브라우저(삼성 인터넷이든 Chrome이든)로 넘깁니다.
 function env(){
@@ -913,28 +916,16 @@ function env(){
   return { android:android, ios:ios, kakao:kakao, samsung:samsung, inapp:inapp,
     needExternal: android && inapp,           // 앱 내부 브라우저 → 기본 브라우저로
     needSafari: ios && inapp,
-    useShare: android && !inapp && !chrome };   // 삼성 인터넷 등 → 공유로 보내기
+    useSave: android && !inapp && !chrome };    // 삼성 인터넷 등 → 저장 후 앨범에서 보내기
 }
-function quoteFile(){
-  try { return new File([quoteBlob], fileBase() + '.png', {type:'image/png'}); } catch(e){ return null; }
-}
-function canShareImage(){
-  var f = quoteBlob && quoteFile();
-  try { return !!(f && navigator.share && navigator.canShare && navigator.canShare({files:[f]})); } catch(e){ return false; }
-}
-function shareImage(){
-  var f = quoteFile();
-  // 공유는 버튼을 누른 그 순간에 바로 호출해야 합니다(비동기 작업 뒤에 부르면 막힘).
-  navigator.share({ files:[f] }).then(function(){
-    toast('카카오톡에서 이디야 서해그랑블점 채널 대화방을 골라 보내 주세요. 보낸 뒤 꼭 대화방에서 전송됐는지 확인해 주세요.', 7000);
-  }).catch(function(err){
-    if (err && err.name === 'AbortError') return; // 사용자가 공유창을 닫음
-    console.error('이미지 공유 실패:', err);
-    toast(saveGuide(), 9000);
-  });
-}
-function saveGuide(){
-  return '“이미지 저장”으로 견적서를 저장한 뒤, 카카오톡 채널 대화방에서 + 버튼 → 앨범에서 견적서 사진을 골라 보내 주세요.';
+function downloadQuote(){
+  // 새 탭 없이 휴대폰에 바로 저장(삼성 인터넷은 '다운로드' 폴더 → 갤러리·카카오톡 앨범에 보임)
+  var a = document.createElement('a');
+  a.href = quoteUrl; a.download = fileBase() + '.png';
+  document.body.appendChild(a); a.click(); a.remove();
+  var k = $('#m-quote [data-kakao]');
+  if (k){ k.classList.remove('nudge'); void k.offsetWidth; k.classList.add('nudge'); }
+  toast('견적서 사진을 저장했어요. 이제 노란 “카카오톡 채널 열기”를 누르고, 대화방 입력창 왼쪽 + 버튼 → 앨범에서 방금 저장된 견적서를 골라 보내 주세요.', 10000);
 }
 function b64e(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
 function b64d(str){ str = str.replace(/-/g,'+').replace(/_/g,'/'); while (str.length % 4) str += '='; return decodeURIComponent(escape(atob(str))); }
@@ -1079,6 +1070,7 @@ function bind(){
         renderAll(); window.scrollTo({top:0}); toast('모두 지웠습니다.');
       }); return; }
     if (act==='png-save'){ if (!quoteBlob) return;
+      if (env().useSave){ downloadQuote(); return; }
       // 모바일 브라우저는 Blob 다운로드 링크를 무시하는 경우가 있어
       // 새 탭에 이미지 자체를 열고 길게 눌러 저장하도록 안내합니다.
       if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
@@ -1104,12 +1096,8 @@ function bind(){
         openExternal();
         return;
       }
-      // 2) 삼성 인터넷 등 → 복사 대신 카카오톡으로 바로 공유
-      if (ev.useShare){
-        if (canShareImage()) shareImage();
-        else toast(saveGuide(), 9000);
-        return;
-      }
+      // 2) 삼성 인터넷 등 → 붙여넣기가 안 되므로 사진으로 저장 후 앨범에서 보내기
+      if (ev.useSave){ downloadQuote(); return; }
       // 3) Chrome · Safari · PC → 기존처럼 클립보드 복사
       if (window.isSecureContext && navigator.clipboard && navigator.clipboard.write && window.ClipboardItem){
         try {
@@ -1245,12 +1233,14 @@ initAdminAccess();
   if (!b) return;
   if (ev.needExternal) b.textContent = '브라우저에서 열어 이미지 보내기';
   else if (ev.needSafari) b.textContent = 'Safari에서 열어 이미지 복사';
-  else if (ev.useShare) b.textContent = '카카오톡으로 이미지 보내기';
+  else if (ev.useSave){ b.textContent = '견적서 사진으로 저장'; b.classList.add('pri');
+    var sv = $('[data-act="png-save"]'); if (sv) sv.hidden = true;
+    var h = $('#m-quote .hint'); if (h) h.textContent = '① 견적서 사진으로 저장 → ② 카카오톡 채널 열기 → ③ 대화방 + 버튼 → 앨범에서 견적서 선택 후 전송'; }
 })();
 if (restored==='carry-ext'){
   openQuote();
-  toast(env().useShare
-    ? '작성하신 견적을 그대로 불러왔습니다. “카카오톡으로 이미지 보내기”를 눌러 카카오톡 → 이디야 채널 대화방을 선택해 주세요.'
+  toast(env().useSave
+    ? '작성하신 견적을 그대로 불러왔습니다. “견적서 사진으로 저장” → “카카오톡 채널 열기” → 대화방 + 버튼 → 앨범 순서로 보내 주세요.'
     : '작성하신 견적을 그대로 불러왔습니다. “이미지 복사” → “카카오톡 채널 열기” → 입력창 길게 눌러 붙여넣기 순서로 진행해 주세요.', 8000);
 }
 else if (restored==='carry') toast('메뉴를 저장하고 작성 중이던 견적을 이어서 불러왔습니다.');
