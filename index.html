@@ -111,6 +111,9 @@ textarea.in{min-height:120px;resize:vertical;line-height:1.6}
 .dmsg.warn{color:var(--danger);font-weight:600}
 .dmsg.ok{color:var(--ok);font-weight:600}
 .f.err .dmsg:empty{display:none}
+.qhow{margin:0;color:var(--muted);font-weight:400;font-size:.86rem}
+.qhow[hidden]{display:none}
+.qhow-sub{display:block;padding-left:.8em}
 .qwarn{margin:4px 0 0;color:var(--danger);font-weight:700;font-size:.9rem}
 .f.err .emsg{display:block}
 .seg{display:flex;flex-wrap:wrap;gap:8px}
@@ -359,7 +362,7 @@ var MARKUP = `
 
 <div class="modal" id="m-quote" hidden role="dialog" aria-modal="true" aria-labelledby="mq-h">
   <div class="sheet">
-    <div class="sheet-h"><div><h2 id="mq-h">견적서가 준비됐어요</h2><p class="hint">저장하거나 복사해서 카카오톡 채널 채팅에 보내 주세요.</p><p class="qwarn">이미지 저장만으로는 주문이 접수되지 않습니다.</p></div><button class="x" type="button" data-close aria-label="닫기">×</button></div>
+    <div class="sheet-h"><div><h2 id="mq-h">견적서가 준비됐어요</h2><p class="hint">저장하거나 복사해서 카카오톡 채널 채팅에 보내 주세요.</p><p class="qhow" hidden>1. 이미지 복사 → 2. 카카오톡 채널 열기 → 3. 붙여넣기<span class="qhow-sub">(PC : 컨트롤+v or 마우스 우측키 -&gt; 붙여넣기 선택)<br>(모바일 : 카카오톡 채팅입력창을 2-3초 누르신 후 붙여넣기 선택)</span></p><p class="qwarn">이미지 저장만으로는 주문이 접수되지 않습니다.</p></div><button class="x" type="button" data-close aria-label="닫기">×</button></div>
     <div class="preview"><img id="mq-img" alt="견적서 미리보기"></div>
     <div class="mact">
       <button class="btn pri" type="button" data-act="png-save">이미지 저장</button>
@@ -821,10 +824,6 @@ function makeQuoteCanvas(){
     x.fillText('최종 금액과 주문 가능 여부는 매장 상담 후 확정됩니다.', P, y); y += 52;
     f(700,25); x.fillStyle = '#C52222';
     x.fillText('이미지 저장만으로는 주문이 접수되지 않습니다.', P, y); y += 40;
-    ['PC, 모바일 크롬, 사파리 : 이미지 복사 후 카카오톡 채팅창을 열어 붙여넣기 해주세요.',
-     '그외 : 이미지 저장 후, 카카오톡 채팅창을 열어 견적서 사진을 첨부해주세요.'].forEach(function(t){
-      wrap(x, t, W-2*P).forEach(function(l){ x.fillText(l, P, y); y += 40; });
-    });
     y += 20;
 
     // 바닥
@@ -1207,6 +1206,9 @@ initAdminAccess();
 (function(){
   var ev = env(), b = $('[data-act="png-copy"]');
   if (!b) return;
+  // 크롬·사파리(PC 포함)에서만 복사 → 붙여넣기 방법 안내 표시 (삼성 인터넷·앱 내부 브라우저 제외)
+  var how = $('#m-quote .qhow');
+  if (how && !ev.useSave && !ev.needExternal && !ev.needSafari) how.hidden = false;
   if (ev.needExternal) b.textContent = '브라우저에서 열어 이미지 보내기';
   else if (ev.needSafari) b.textContent = 'Safari에서 열어 이미지 복사';
   else if (ev.useSave){ b.textContent = '견적서 사진으로 저장'; b.classList.add('pri');
