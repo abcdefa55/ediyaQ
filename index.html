@@ -802,7 +802,7 @@ function makeQuoteCanvas(){
     f(700,46); x.fillStyle = NAVY; x.fillText(won(tt.sum), W-P-28, y+88); x.textAlign='left';
     y += 180;
 
-    section('포장·스티커');
+    section('포장');
     var ex = []; if (state.extras.straw) ex.push('빨대·컵홀더 동봉'); if (state.extras.label) ex.push('컵마다 메뉴명 표시');
     kv('포장 방식', PACK[state.pack]);
     kv('함께 챙길 것', ex.length ? ex.join(', ') : '없음');
@@ -817,11 +817,15 @@ function makeQuoteCanvas(){
 
     // 안내
     f(500,23); x.fillStyle = MUTED;
-    x.fillText('포장·스티커 및 배달 추가 비용은 미포함입니다.', P, y); y += 36;
+    x.fillText('포장 및 배달 추가 비용은 미포함입니다.', P, y); y += 36;
     x.fillText('최종 금액과 주문 가능 여부는 매장 상담 후 확정됩니다.', P, y); y += 52;
     f(700,25); x.fillStyle = '#C52222';
     x.fillText('이미지 저장만으로는 주문이 접수되지 않습니다.', P, y); y += 40;
-    x.fillText('카카오톡 채팅창에 이 사진을 첨부해 직접 보내 주세요.', P, y); y += 60;
+    ['PC, 모바일 크롬, 사파리 : 이미지 복사 후 카카오톡 채팅창을 열어 붙여넣기 해주세요.',
+     '그외 : 이미지 저장 후, 카카오톡 채팅창을 열어 견적서 사진을 첨부해주세요.'].forEach(function(t){
+      wrap(x, t, W-2*P).forEach(function(l){ x.fillText(l, P, y); y += 40; });
+    });
+    y += 20;
 
     // 바닥
     var boxTop = y;
@@ -849,7 +853,7 @@ function quoteText(){
   var ex = []; if (state.extras.straw) ex.push('빨대·컵홀더 동봉'); if (state.extras.label) ex.push('컵마다 메뉴명 표시');
   t.push('■ 포장: ' + PACK[state.pack] + (ex.length ? ' (' + ex.join(', ') + ')' : ''));
   if ((state.memo||'').trim()) t.push('■ 전달사항: ' + state.memo.trim());
-  t.push('', '※ 포장·스티커 및 배달 추가 비용은 미포함입니다.', '※ 최종 금액과 주문 가능 여부는 매장 상담 후 확정됩니다.', '※ 견적 저장만으로는 주문이 접수되지 않습니다. 카카오톡 채널로 꼭 보내 주세요.');
+  t.push('', '※ 포장 및 배달 추가 비용은 미포함입니다.', '※ 최종 금액과 주문 가능 여부는 매장 상담 후 확정됩니다.', '※ 견적 저장만으로는 주문이 접수되지 않습니다. 카카오톡 채널로 꼭 보내 주세요.');
   return t.join('\n');
 }
 function openQuote(){
